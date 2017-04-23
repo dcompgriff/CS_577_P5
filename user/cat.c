@@ -35,10 +35,5 @@ main(int argc, char *argv[])
     cat(fd);
     close(fd);
   }
-  printf(1, "Sizeof double: %d.\n", sizeof(double));
-  printf(1, "Sizeof double ptr: %d.\n", sizeof(double*));
-  printf(1, "Sizeof uint: %d.\n", sizeof(uint));
-  printf(1, "Sizeof uint ptr: %d.\n", sizeof(uint*));
-
   exit();
 }
