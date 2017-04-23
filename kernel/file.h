@@ -24,7 +24,8 @@ struct inode {
   short minor;
   short nlink;
   uint size;
-  uint addrs[NDIRECT+1];
+  double addrs[NDIRECT];   // Data block addresses
+  uint indirect;
 };
 
 #define I_BUSY 0x1

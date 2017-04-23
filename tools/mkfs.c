@@ -208,6 +208,8 @@ main(int argc, char *argv[])
     exit(1);
   }
 
+  printf("sizeof struct dinode: %d.\n", (int)sizeof(struct dinode));
+  printf("sizeof double %d.\n", (int)sizeof(double));
   assert((512 % sizeof(struct dinode)) == 0);
   assert((512 % sizeof(struct xv6_dirent)) == 0);
 
