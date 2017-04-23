@@ -261,69 +261,42 @@ winode(uint inum, struct dinode *ip)
 {
   char buf[512];
   uint bn;
-  //uint chksm;
-  //uint bladdr;
-  //uint i;
   struct dinode *dip;
 
-/*
-  char *p;
-  uint fbn, off, n1;
-  char buf[512];
+  uint chksm;
+  uint i;
   uint indirect[2*NINDIRECT];
-  uint x;
-
-
-  off = xint(din.size);
-  while(n > 0){
-    fbn = off / 512;
-    assert(fbn < MAXFILE);
-    if(fbn < NDIRECT){
-      if(xint(din.addrs[fbn]) == 0){
-        din.addrs[fbn] = xint(freeblock++);
-        usedblocks++;
-      }
-      x = xint(din.addrs[fbn]);
-    } else {
-      // Updated to use indirect.
-      if(xint(din.indirect) == 0){
-        // printf("allocate indirect block\n");
-        din.indirect = xint(freeblock++);
-        usedblocks++;
-      }
-      // Read the indirect block into
-      rsect(xint(din.indirect), (char*)indirect);
-      if(indirect[fbn - NDIRECT] == 0){
-        indirect[fbn - NDIRECT] = xint(freeblock++);
-        usedblocks++;
-        wsect(xint(din.indirect), (char*)indirect);
-      }
-      x = xint(indirect[fbn-NDIRECT]);
-    }
-    n1 = min(n, (fbn + 1) * 512 - off);
-    rsect(x, buf);
-    bcopy(p, buf + off - (fbn * 512), n1);
-    wsect(x, buf);
-    n -= n1;
-    off += n1;
-    p += n1;
-  }
-  din.size = xint(off);
-  winode(inum, &din);
 
   // Calculate direct checksums and write them to the array.
   for(i = 0; i<NDIRECT; i++){
-    chksm = adler32(ip->addrs[i], BSIZE);
+    // Read sector into the buffer.
+    rsect(xint(ip->addrs[i]), buf);
+    // Compute buffer checksum.
+    chksm = adler32((void*)buf, BSIZE);
+    // Set buffer checksum field of inode.
     ip->chksm[i] = chksm;
   }
+
+
   // Calculate indirect checksums and write them to the indirect block.
-  if(ip->indirect){
-    for(i = 0; i<INDIRECT; i++){
-      chksm = adler32(ip->indirect + (i*sizeof(uint)), BSIZE);
-      ip->chksm[i] = chksm;
+  if(ip->size > (NDIRECT * BSIZE)){
+    // Read the indirect block in.
+    rsect(xint(ip->indirect), (char*)indirect);
+    for(i = 0; i<NINDIRECT; i++){
+      // Read sector into the buffer.
+      rsect(indirect[i], buf);
+      // Compute buffer checksum.
+      chksm = adler32((void*)buf, BSIZE);
+      // Set buffer checksum field of inode.
+      indirect[i + NINDIRECT] = chksm;
     }
+    // Write out indirect block with both original data in the first 64 uints, and 
+    // new indirect checksum data in the last 64 uints.
+    wsect(xint(ip->indirect), indirect);
+  }else{
+    ip->indirect = 0;
   }
-*/
+
 
   bn = i2b(inum);
   rsect(bn, buf);
@@ -398,7 +371,7 @@ iappend(uint inum, void *xp, int n)
   struct dinode din;
   char buf[512];
   // Changed to 2*NINDIRECT, as the entire indirect 512-byte block needs to be read in.
-  uint indirect[NINDIRECT];
+  uint indirect[2*NINDIRECT];
   uint x;
 
   rinode(inum, &din);
