@@ -255,12 +255,75 @@ i2b(uint inum)
   return (inum / IPB) + 2;
 }
 
+// TODO: Update to write out checksums of data blocks here.
 void
 winode(uint inum, struct dinode *ip)
 {
   char buf[512];
   uint bn;
+  //uint chksm;
+  //uint bladdr;
+  //uint i;
   struct dinode *dip;
+
+/*
+  char *p;
+  uint fbn, off, n1;
+  char buf[512];
+  uint indirect[2*NINDIRECT];
+  uint x;
+
+
+  off = xint(din.size);
+  while(n > 0){
+    fbn = off / 512;
+    assert(fbn < MAXFILE);
+    if(fbn < NDIRECT){
+      if(xint(din.addrs[fbn]) == 0){
+        din.addrs[fbn] = xint(freeblock++);
+        usedblocks++;
+      }
+      x = xint(din.addrs[fbn]);
+    } else {
+      // Updated to use indirect.
+      if(xint(din.indirect) == 0){
+        // printf("allocate indirect block\n");
+        din.indirect = xint(freeblock++);
+        usedblocks++;
+      }
+      // Read the indirect block into
+      rsect(xint(din.indirect), (char*)indirect);
+      if(indirect[fbn - NDIRECT] == 0){
+        indirect[fbn - NDIRECT] = xint(freeblock++);
+        usedblocks++;
+        wsect(xint(din.indirect), (char*)indirect);
+      }
+      x = xint(indirect[fbn-NDIRECT]);
+    }
+    n1 = min(n, (fbn + 1) * 512 - off);
+    rsect(x, buf);
+    bcopy(p, buf + off - (fbn * 512), n1);
+    wsect(x, buf);
+    n -= n1;
+    off += n1;
+    p += n1;
+  }
+  din.size = xint(off);
+  winode(inum, &din);
+
+  // Calculate direct checksums and write them to the array.
+  for(i = 0; i<NDIRECT; i++){
+    chksm = adler32(ip->addrs[i], BSIZE);
+    ip->chksm[i] = chksm;
+  }
+  // Calculate indirect checksums and write them to the indirect block.
+  if(ip->indirect){
+    for(i = 0; i<INDIRECT; i++){
+      chksm = adler32(ip->indirect + (i*sizeof(uint)), BSIZE);
+      ip->chksm[i] = chksm;
+    }
+  }
+*/
 
   bn = i2b(inum);
   rsect(bn, buf);
@@ -334,6 +397,7 @@ iappend(uint inum, void *xp, int n)
   uint fbn, off, n1;
   struct dinode din;
   char buf[512];
+  // Changed to 2*NINDIRECT, as the entire indirect 512-byte block needs to be read in.
   uint indirect[NINDIRECT];
   uint x;
 
@@ -350,17 +414,18 @@ iappend(uint inum, void *xp, int n)
       }
       x = xint(din.addrs[fbn]);
     } else {
-      if(xint(din.addrs[NDIRECT]) == 0){
+      // Updated to use indirect.
+      if(xint(din.indirect) == 0){
         // printf("allocate indirect block\n");
-        din.addrs[NDIRECT] = xint(freeblock++);
+        din.indirect = xint(freeblock++);
         usedblocks++;
       }
       // printf("read indirect block\n");
-      rsect(xint(din.addrs[NDIRECT]), (char*)indirect);
+      rsect(xint(din.indirect), (char*)indirect);
       if(indirect[fbn - NDIRECT] == 0){
         indirect[fbn - NDIRECT] = xint(freeblock++);
         usedblocks++;
-        wsect(xint(din.addrs[NDIRECT]), (char*)indirect);
+        wsect(xint(din.indirect), (char*)indirect);
       }
       x = xint(indirect[fbn-NDIRECT]);
     }

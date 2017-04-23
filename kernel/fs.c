@@ -190,7 +190,10 @@ iupdate(struct inode *ip)
   dip->minor = ip->minor;
   dip->nlink = ip->nlink;
   dip->size = ip->size;
+  // Added code here to update new data fields of the inodes.
+  dip->indirect = ip->indirect;
   memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
+  memmove(dip->chksm, ip->chksm, sizeof(ip->chksm));
   bwrite(bp);
   brelse(bp);
 }
@@ -265,7 +268,10 @@ ilock(struct inode *ip)
     ip->minor = dip->minor;
     ip->nlink = dip->nlink;
     ip->size = dip->size;
+    // Added code here to coy the new data members of inode.
+    ip->indirect = dip->indirect;
     memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
+    memmove(ip->chksm, dip->chksm, sizeof(ip->chksm));
     brelse(bp);
     ip->flags |= I_VALID;
     if(ip->type == 0)
@@ -316,6 +322,7 @@ iunlockput(struct inode *ip)
   iput(ip);
 }
 
+// !!!!!!!!!!!!!!!!!!!!!!!KEY METHOD!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 // Inode contents
 //
 // The contents (data) associated with each inode is stored
@@ -340,8 +347,9 @@ bmap(struct inode *ip, uint bn)
 
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
-    if((addr = ip->addrs[NDIRECT]) == 0)
-      ip->addrs[NDIRECT] = addr = balloc(ip->dev);
+    // Updated code to use ip->indirect, instead of ip->addrs[INDIRECT].
+    if((addr = ip->indirect) == 0)
+      ip->indirect = addr = balloc(ip->dev);
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
     if((addr = a[bn]) == 0){
@@ -373,15 +381,16 @@ itrunc(struct inode *ip)
   }
   
   if(ip->addrs[NDIRECT]){
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
+    // Updated to reffer to ip->indirect instead of ip->addrs[INDIRECT]
+    bp = bread(ip->dev, ip->indirect);
     a = (uint*)bp->data;
     for(j = 0; j < NINDIRECT; j++){
       if(a[j])
         bfree(ip->dev, a[j]);
     }
     brelse(bp);
-    bfree(ip->dev, ip->addrs[NDIRECT]);
-    ip->addrs[NDIRECT] = 0;
+    bfree(ip->dev, ip->indirect);
+    ip->indirect = 0;
   }
 
   ip->size = 0;
@@ -400,6 +409,7 @@ stati(struct inode *ip, struct stat *st)
 }
 
 // Read data from inode.
+// TODO: Write checksum checking code here.
 int
 readi(struct inode *ip, char *dst, uint off, uint n)
 {
@@ -432,6 +442,7 @@ readi(struct inode *ip, char *dst, uint off, uint n)
 }
 
 // Write data to inode.
+// TODO: Write checksum calculation call code here.
 int
 writei(struct inode *ip, char *src, uint off, uint n)
 {
