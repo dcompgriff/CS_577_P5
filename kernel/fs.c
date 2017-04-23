@@ -415,6 +415,7 @@ readi(struct inode *ip, char *dst, uint off, uint n)
 {
   uint tot, m;
   struct buf *bp;
+  struct buf *indirectbp;
 
   if(ip->type == T_DEV){
     if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].read)
@@ -434,6 +435,48 @@ readi(struct inode *ip, char *dst, uint off, uint n)
     }
     
     bp = bread(ip->dev, sector_number);
+    
+    // Perform checksum here.
+    uint chksm = 0;
+    uint calcChksm = adler32(bp->data, BSIZE);
+    uint relativeFileBlock = off/BSIZE;
+    if(relativeFileBlock < NDIRECT && sector_number != 29){
+      // Read chksm directly from the inode.
+      chksm = ip->chksm[relativeFileBlock];
+    }else if(sector_number != 29){
+      // Read in the indirect block.
+      indirectbp = bread(ip->dev, ip->indirect);
+
+      // TODO: ENSURE THAT THIS CALCULATION IS CORRECT!
+      uint partialData[4];
+      partialData[0] = 0;
+      partialData[1] = 0;
+      partialData[2] = 0;
+      partialData[3] = 0;
+
+      // Read the indirect block data chksm in the second half of the block. (In little endian)
+      partialData[0] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4];
+      partialData[1] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 1];
+      partialData[1] = partialData[1] << 8;
+      partialData[2] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 2];
+      partialData[2] = partialData[2] << 16;
+      partialData[3] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 3];
+      partialData[3] = partialData[3] << 24;
+      chksm = partialData[0] | partialData[1] | partialData[2] | partialData[3];
+
+      // Release the indirect buffer.
+      brelse(indirectbp);
+    } 
+
+    if(sector_number != 29 && chksm != calcChksm){
+      cprintf("Error: checksum mismatch, block %d\n", sector_number);
+      brelse(bp);
+      return -1;
+    }
+
+    //if(chksm)
+    //  cprintf("NonError: checksum print, block %d\n", sector_number);
+
     m = min(n - tot, BSIZE - off%BSIZE);
     memmove(dst, bp->data + off%BSIZE, m);
     brelse(bp);
@@ -470,9 +513,34 @@ writei(struct inode *ip, char *src, uint off, uint n)
     bp = bread(ip->dev, sector_number);
     m = min(n - tot, BSIZE - off%BSIZE);
     memmove(bp->data + off%BSIZE, src, m);
+ /*   
+    // Write checksum.
+    uint chksm = adler32(bp->data, BSIZE);
+    uint relativeFileBlock = off/BSIZE;
+    if(relativeFileBlock < NDIRECT){
+      // Write chksm directly from the inode.
+      ip->chksm[relativeFileBlock] = chksm;
+    }else{
+      // Read in the indirect block.
+      indirectbp = bread(ip->dev, ip->indirect);
+      // Convert the chksm into a char array.
+      uint mask = 0x000000FF;
+      indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4] = chksm & mask;
+      mask << 8;
+      indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 1] = chksm & mask;
+      mask << 8;
+      indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 2] = chksm & mask;
+      mask << 8;
+      indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 3] = chksm & mask;
+
+      // Write out the updated indirect block buffer.
+      bwrite(indirectbp);
+    }   
+*/
     bwrite(bp);
     brelse(bp);
   }
+
 
   if(n > 0 && off > ip->size){
     ip->size = off;
