@@ -21,7 +21,7 @@ struct superblock {
 // Orig 12, but divide by 2 (minus 1 since indirect no longer in array)
 //   since twice as many bytes per node.
 #define NDIRECT 6
-#define NINDIRECT (BSIZE / sizeof(uint))
+#define NINDIRECT (BSIZE / (2*sizeof(uint)))
 #define MAXFILE (NDIRECT + NINDIRECT)
 
 // On-disk inode structure
