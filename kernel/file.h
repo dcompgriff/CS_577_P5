@@ -24,7 +24,8 @@ struct inode {
   short minor;
   short nlink;
   uint size;
-  double addrs[NDIRECT];   // Data block addresses
+  uint addrs[NDIRECT];  // Data block addresses
+  uint chksm[NDIRECT];  // Checksums for direct blocks
   uint indirect;
 };
 
