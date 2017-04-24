@@ -13,6 +13,7 @@ struct stat {
   uint ino;    // Inode number on device
   short nlink; // Number of links to file
   uint size;   // Size of file in bytes
+  uint checksum; //Full file checksum xor
 };
 
 #endif // _STAT_H_

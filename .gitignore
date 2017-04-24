@@ -7,6 +7,7 @@ tools/*~
 kernel/*~
 user/*~
 fs/*~
+kernel/.__*
 
 # Compiled Object files
 *.o

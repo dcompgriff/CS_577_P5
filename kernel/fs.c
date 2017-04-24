@@ -401,11 +401,62 @@ itrunc(struct inode *ip)
 void
 stati(struct inode *ip, struct stat *st)
 {
+  struct buf *bp;
+  struct buf *indirectbp;
+  uint chksm = 0;
+  uint i;
+
   st->dev = ip->dev;
   st->ino = ip->inum;
   st->type = ip->type;
   st->nlink = ip->nlink;
   st->size = ip->size;
+
+  // Calculate the checksum over the entire file.
+  for(i=0; i < ip->size; i += BSIZE){
+    uint sector_number = bmap(ip, i/BSIZE);
+    if(sector_number == 0){ //failed to find block
+      panic("readi: trying to read a block that was never allocated");
+    }
+    
+    // Read in the data sector.
+    bp = bread(ip->dev, sector_number);
+    // Perform checksum here.
+    uint relativeFileBlock = i/BSIZE;
+    if(i == 0){
+      chksm = ip->chksm[i];
+    }else if(relativeFileBlock < NDIRECT){
+      // Read chksm directly from the inode.
+      chksm = chksm ^ ip->chksm[relativeFileBlock];
+    }else{
+      // Read in the indirect block.
+      indirectbp = bread(ip->dev, ip->indirect);
+
+      // Initialize data for the checksum calculation.
+      uint partialData[4];
+      partialData[0] = 0;
+      partialData[1] = 0;
+      partialData[2] = 0;
+      partialData[3] = 0;
+
+      // Read the indirect block data chksm in the second half of the block. (In little endian)
+      partialData[0] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4];
+      partialData[1] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 1];
+      partialData[1] = partialData[1] << 8;
+      partialData[2] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 2];
+      partialData[2] = partialData[2] << 16;
+      partialData[3] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 3];
+      partialData[3] = partialData[3] << 24;
+      chksm = chksm ^ (partialData[0] | partialData[1] | partialData[2] | partialData[3]);
+
+      // Release the indirect buffer.
+      brelse(indirectbp);
+    } 
+    brelse(bp);
+  }
+
+  // Set the file checksum.
+  st->checksum = chksm;
 }
 
 // Read data from inode.
