@@ -19,7 +19,7 @@ main(int argc, char *argv[])
     // fstat file.
     fstat(fd, &st);
     // print file characteristics.
-    printf(1, "type: %d\ndev: %d\nino: %d\nlink: %d\nsize: %d\nchecksum: %d\n",
+    printf(1, "type: %d\ndev: %d\nino: %d\nlink: %d\nsize: %d\nchecksum: %x\n",
       st.type, st.dev, st.ino, st.nlink, st.size, st.checksum);
     close(fd);
   }

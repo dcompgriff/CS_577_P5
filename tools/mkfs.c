@@ -267,6 +267,11 @@ winode(uint inum, struct dinode *ip)
   uint i;
   uint indirect[2*NINDIRECT];
 
+  for(i = 0; i<512; i++){
+    buf[i] = 0x00;
+  }
+  //printf("0 chksm = %u.\n", adler32((void*)buf, BSIZE));
+
   // Calculate direct checksums and write them to the array.
   for(i = 0; i<NDIRECT; i++){
     // Read sector into the buffer.

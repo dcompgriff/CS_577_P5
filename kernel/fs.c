@@ -622,6 +622,7 @@ dirlookup(struct inode *dp, char *name, uint *poff)
 {
   uint off, inum;
   struct buf *bp;
+  struct buf *indirectbp;
   struct dirent *de;
 
   if(dp->type != T_DIR)
@@ -629,6 +630,45 @@ dirlookup(struct inode *dp, char *name, uint *poff)
 
   for(off = 0; off < dp->size; off += BSIZE){
     bp = bread(dp->dev, bmap(dp, off / BSIZE));
+
+    // Perform directory block contents checksum here.
+    uint chksm = 0;
+    uint calcChksm = adler32(bp->data, BSIZE);
+    uint relativeFileBlock = off/BSIZE;
+    if(relativeFileBlock < NDIRECT){
+      // Read chksm directly from the inode.
+      chksm = dp->chksm[relativeFileBlock];
+    }else{
+      // Read in the indirect block.
+      indirectbp = bread(dp->dev, dp->indirect);
+
+      // TODO: ENSURE THAT THIS CALCULATION IS CORRECT!
+      uint partialData[4];
+      partialData[0] = 0;
+      partialData[1] = 0;
+      partialData[2] = 0;
+      partialData[3] = 0;
+
+      // Read the indirect block data chksm in the second half of the block. (In little endian)
+      partialData[0] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4];
+      partialData[1] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 1];
+      partialData[1] = partialData[1] << 8;
+      partialData[2] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 2];
+      partialData[2] = partialData[2] << 16;
+      partialData[3] = indirectbp->data[(relativeFileBlock - NDIRECT + NINDIRECT)*4 + 3];
+      partialData[3] = partialData[3] << 24;
+      chksm = partialData[0] | partialData[1] | partialData[2] | partialData[3];
+
+      // Release the indirect buffer.
+      brelse(indirectbp);
+    }
+    if(chksm != calcChksm){
+      cprintf("Error: checksum mismatch, block %d\n", bmap(dp, off / BSIZE));
+      brelse(bp);
+      return (struct inode*)-1;
+    }
+
+    // Original code here.
     for(de = (struct dirent*)bp->data;
         de < (struct dirent*)(bp->data + BSIZE);
         de++){
@@ -657,7 +697,11 @@ dirlink(struct inode *dp, char *name, uint inum)
   struct inode *ip;
 
   // Check that name is not present.
-  if((ip = dirlookup(dp, name, 0)) != 0){
+  ip = dirlookup(dp, name, 0);
+  if((int)ip == -1){
+    return -1;
+  }
+  if(ip != 0){
     iput(ip);
     return -1;
   }
