@@ -708,7 +708,11 @@ dirlink(struct inode *dp, char *name, uint inum)
 
   // Look for an empty dirent.
   for(off = 0; off < dp->size; off += sizeof(de)){
-    if(readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    int retValue = readi(dp, (char*)&de, off, sizeof(de));
+    if(retValue == -1){
+      return -1;
+    }
+    if(retValue != sizeof(de))
       panic("dirlink read");
     if(de.inum == 0)
       break;
@@ -785,7 +789,12 @@ namex(char *path, int nameiparent, char *name)
       iunlock(ip);
       return ip;
     }
-    if((next = dirlookup(ip, name, 0)) == 0){
+    next = dirlookup(ip, name, 0);
+    if((int)next == -1){
+      iunlockput(ip);
+      return 0;
+    }
+    if(next == 0){
       iunlockput(ip);
       return 0;
     }

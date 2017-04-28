@@ -153,6 +153,11 @@ isdirempty(struct inode *dp)
   struct dirent de;
 
   for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
+    int retValue = readi(dp, (char*)&de, off, sizeof(de));
+    if(retValue == -1){
+      return 0;
+    }
+
     if(readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
       panic("isdirempty: readi");
     if(de.inum != 0)
@@ -181,6 +186,11 @@ sys_unlink(void)
     return -1;
   }
 
+  ip = dirlookup(dp, name, &off);
+  if((int)ip == -1){
+    iunlockput(dp);
+    return -1;
+  }
   if((ip = dirlookup(dp, name, &off)) == 0){
     iunlockput(dp);
     return -1;
@@ -221,7 +231,13 @@ create(char *path, short type, short major, short minor)
     return 0;
   ilock(dp);
 
-  if((ip = dirlookup(dp, name, &off)) != 0){
+  ip = dirlookup(dp, name, &off);
+  if((int)ip == -1){
+    iunlockput(dp);
+    return 0;
+  }
+
+  if(ip != 0){
     iunlockput(dp);
     ilock(ip);
     if(type == T_FILE && ip->type == T_FILE)
